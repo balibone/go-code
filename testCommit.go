@@ -1,13 +1,12 @@
 package main
 
-import(
+import (
 	"fmt"
 	"math/rand"
 )
 
 func main() {
-	count int = 10
-	for index := 0; index < count; index++ {
-		fmt.Println("hello number", rand.Int)
+	for index, count := 0, 10; index < count; index++ {
+		fmt.Printf("hello number %d\n", rand.Intn(10))
 	}
 }
