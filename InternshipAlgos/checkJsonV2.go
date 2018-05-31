@@ -1,245 +1,222 @@
 package main
 
-import "fmt"
-import "encoding/json"
-import "reflect"
-import "strconv"
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"reflect"
+)
 
-func jsonContains(expected, actual interface{}) (ok bool) {
-	var isArray func(interface{}) ([]interface{}, bool)
-	var isObj func(interface{}) (map[string]interface{}, bool)
-	var isJSONBasicType func(interface{}) (reflect.Kind, bool)
-	var isEqualElement func(string, interface{}, interface{}) bool
-	var isEqualJSON func(string, interface{}, interface{}) bool
+var expected interface{}
+var actual interface{}
 
-	isArray = func(input interface{}) (array []interface{}, ok bool) {
-		if reflect.ValueOf(input).Kind() != reflect.Slice {
-			return
-		}
-		return input.([]interface{}), true
-	}
-
-	isObj = func(input interface{}) (obj map[string]interface{}, ok bool) {
-		if reflect.ValueOf(input).Kind() != reflect.Map {
-			return
-		}
-		return input.(map[string]interface{}), true
-	}
-
-	isJSONBasicType = func(input interface{}) (JSONType reflect.Kind, ok bool) {
-		if reflect.TypeOf(input) == nil {
-			// JSON null
-			return reflect.UnsafePointer, true
-		}
-		switch input.(type) {
-		case int64:
-			// JSON number - integer
-			return reflect.Int64, true
-		case float64:
-			// JSON number - float
-			return reflect.Float64, true
-		case string:
-			// JSON string
-			return reflect.String, true
-		case bool:
-			// JSON bool
-			return reflect.Bool, true
-		}
-		return
-	}
-	
-	isEqualElement = func(path string, expected, actual interface{}) bool {
-		if jsonType, ok := isJSONBasicType(expected); ok {
-			switch jsonType {
-			case reflect.UnsafePointer:
-				if reflect.TypeOf(actual) != nil {
-					fmt.Printf("Expected type `null` in %s, got `%v`\n", path, actual)
-					return false
-				}
-				return true
-			case reflect.Int64:
-				if reflect.ValueOf(actual).Kind() != jsonType {
-					fmt.Printf("Expected type `int` in %s, got %v\n", path, actual)
-					return false
-				}
-				if expected.(int64) != actual.(int64) {
-					fmt.Printf("Expected `%v` in %s, got `%v`\n", expected, path, actual)
-					return false
-				}
-				return true
-			case reflect.Float64:
-				if reflect.ValueOf(actual).Kind() != jsonType {
-					fmt.Printf("Expected type `float` in %s, got %v\n", path, actual)
-					return false
-				}
-				if expected.(float64) != actual.(float64) {
-					fmt.Printf("Expected `%v` in %s, got `%v`\n", expected, path, actual)
-					return false
-				}
-				return true
-			case reflect.String:
-				if reflect.ValueOf(actual).Kind() != jsonType {
-					fmt.Printf("Expected type `string` in %s, got %v\n", path, actual)
-					return false
-				}
-				if expected.(string) != actual.(string) {
-					fmt.Printf("Expected `%v` in %s, got `%v`\n", expected, path, actual)
-					return false
-				}
-				return true
-			case reflect.Bool:
-				if reflect.ValueOf(actual).Kind() != jsonType {
-					fmt.Printf("Expected type `bool` in %s, got %v\n", path, actual)
-					return false
-				}
-				if expected.(bool) != actual.(bool) {
-					fmt.Printf("Expected `%v` in %s, got `%v`\n", expected, path, actual)
-					return false
-				}
-				return true
-			}
-		}
-
-		return isEqualJSON(path, expected, actual)
-	}
-
-	isEqualJSON = func(path string, expected, actual interface{}) (ok bool) {
-		if expectedArray, ok := isArray(expected); ok {
-			actualArray, ok := isArray(actual)
-			if !ok {
-				return false
-			}
-			if len(expectedArray) != len(actualArray) {
-				fmt.Printf("Expected array length of %d in %s, got %d\n",
-					len(expectedArray), path, len(actualArray))
-				return false
-			}
-			for idx, element := range expectedArray {
-				newPath := fmt.Sprintf("%s[%d]", path, idx)
-				if !isEqualElement(newPath, element, actualArray[idx]) {
-					return false
-				}
-			}
-
-			return true
-		}
-
-		if expectedObj, ok := isObj(expected); ok {
-			actualObj, ok := isObj(actual)
-			if !ok {
-				return false
-			}
-			for key, element := range expectedObj {
-				actualElement, ok := actualObj[key]
-				if !ok {
-					fmt.Printf("Expected key `%s` in %s\n", key, path)
-					return false
-				}
-				newPath := fmt.Sprintf(`%s["%s"]`, path, key)
-				if !isEqualElement(newPath, element, actualElement) {
-					return false
-				}
-			}
-
-			return true
-		}
-
-		fmt.Printf("Expected value at %s is not json: `%v`\n", path, expected)
-		return false
-	}
-
-	return isEqualJSON("actual", expected, actual)
+type assertConfig struct {
+	// true if we want to compare values.
+	// false if we do not care about values.
+	checkValues bool
+	// true if we are asserting that actual contains expected.
+	// false if we are asserting that actual should not contain anything in expected.
+	checkExists bool
 }
 
-func jsonExists(input interface{}, path []string, cb func(interface{})) (ok bool) {
-	if len(path) == 0 {
-		fmt.Println("Empty path, nothing to check!")
+// NOTE: this function has been made to cater for both:
+// 1) checking existence
+// 2) checking for non-existence
+// This is done through the use of checkExists field in assertConfig struct.
+// if existence passes, returns true. else returns false.
+// if non-existence passes, returns false. else returns true.
+func assertJSON(expectedJSON, actualJSON []byte, ac assertConfig) (ok bool) {
+	err := json.Unmarshal(expectedJSON, &expected)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	
-	var isArray func(interface{}) ([]interface{}, bool)
-	var isObj func(interface{}) (map[string]interface{}, bool)
-	
-	isArray = func(input interface{}) (array []interface{}, ok bool) {
-		if reflect.ValueOf(input).Kind() != reflect.Slice {
-			return
-		}
-		return input.([]interface{}), true
+	err = json.Unmarshal(actualJSON, &actual)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
+	return isEqualJSON("actual", expected, actual, ac)
+}
 
-	isObj = func(input interface{}) (obj map[string]interface{}, ok bool) {
-		if reflect.ValueOf(input).Kind() != reflect.Map {
-			return
-		}
-		return input.(map[string]interface{}), true
+func isArray(input interface{}) (array []interface{}, ok bool) {
+	//if input type is not a slice (array), return zero values (nil, false)
+	if reflect.ValueOf(input).Kind() != reflect.Slice {
+		return
 	}
-	
-	currentKey := path[0]
-	
-	if array, ok := isArray(input); ok {
-		if idx, err := strconv.Atoi(currentKey); err != nil {
-			fmt.Println("Cannot use non-integer as index for array")
+	return input.([]interface{}), true
+}
+
+func isObj(input interface{}) (obj map[string]interface{}, ok bool) {
+	//if input type is not a map (object), return zero values (nil, false)
+	if reflect.ValueOf(input).Kind() != reflect.Map {
+		return
+	}
+	return input.(map[string]interface{}), true
+}
+
+func isJSONBasicType(input interface{}) (JSONType reflect.Kind, ok bool) {
+	if reflect.TypeOf(input) == nil {
+		// JSON null
+		return reflect.UnsafePointer, true
+	}
+	switch input.(type) {
+	case float64:
+		// JSON number
+		return reflect.Float64, true
+	case string:
+		// JSON string
+		return reflect.String, true
+	case bool:
+		// JSON bool
+		return reflect.Bool, true
+	}
+	// not json basic type, return (0, false)
+	return
+}
+
+func isEqualElement(path string, expected, actual interface{}, ac assertConfig) bool {
+	if jsonType, ok := isJSONBasicType(expected); ok {
+		switch jsonType {
+		case reflect.UnsafePointer:
+			//compare types
+			if reflect.TypeOf(actual) != nil && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected type `null` in %s, got `%v`\n", path, actual))
+				return false
+			}
+			return true
+		case reflect.Float64:
+			//compare types
+			if reflect.ValueOf(actual).Kind() != jsonType && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected type `float` in %s, got %v\n", path, actual))
+				return false
+			}
+			//compare values
+			if expected.(float64) != actual.(float64) && ac.checkExists && ac.checkValues {
+				log.Fatal(fmt.Sprintf("Expected `%v` in %s, got `%v`\n", expected, path, actual))
+				return false
+			}
+			return true
+		case reflect.String:
+			//compare types
+			if reflect.ValueOf(actual).Kind() != jsonType && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected type `string` in %s, got %v\n", path, actual))
+				return false
+			}
+			//compare values
+			if expected.(string) != actual.(string) && ac.checkExists && ac.checkValues {
+				log.Fatal(fmt.Sprintf("Expected `%v` in %s, got `%v`\n", expected, path, actual))
+				return false
+			}
+			return true
+		case reflect.Bool:
+			//compare types
+			if reflect.ValueOf(actual).Kind() != jsonType && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected type `bool` in %s, got %v\n", path, actual))
+				return false
+			}
+			//compare values
+			if expected.(bool) != actual.(bool) && ac.checkExists && ac.checkValues {
+				log.Fatal(fmt.Sprintf("Expected `%v` in %s, got `%v`\n", expected, path, actual))
+				return false
+			}
+			return true
+		}
+	}
+	//not a json basic type, so its a json. call function on it again.
+	return isEqualJSON(path, expected, actual, ac)
+}
+
+func isEqualJSON(path string, expected, actual interface{}, ac assertConfig) (ok bool) {
+	//if expected is array,
+	if expectedArray, ok := isArray(expected); ok {
+		actualArray, ok := isArray(actual)
+		//but actual is not array, return.
+		if !ok && ac.checkExists { // if checking for existence, allow early return.
 			return false
-		} else if idx >= len(array) {
-			fmt.Println("Index out of range")
-			return false
-		} else {
-			if len(path) == 1 {
-				cb(array[idx])
-				return true
-			} else {
-				return jsonExists(array[idx], path[1:], cb)
+		}
+		// To accomodate for notContains use cases,so that there are no false positives for this chunk below:
+		/*`
+		if !ac.checkExists{
+			return true
+		}
+		*/
+		// If expected and actual are both arrays,
+		if ok {
+			//but different lengths, return.
+			if len(expectedArray) != len(actualArray) && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected array length of %d in %s, got %d\n",
+					len(expectedArray), path, len(actualArray)))
+				return false
+			}
+			//else start comparing each array index.
+			for idx, element := range expectedArray {
+				newPath := fmt.Sprintf("%s[%d]", path, idx)
+				//if index elements are not equal, return
+				if !isEqualElement(newPath, element, actualArray[idx], ac) && ac.checkExists {
+					return false
+				}
 			}
 		}
-	}
+		//checking for existence, and all found, so return true.
+		if ac.checkExists {
+			return true
+		}
+		//not checking for existence, so all not found. return false.
+		return false
 
-	if obj, ok := isObj(input); ok {
-		if value, ok := obj[currentKey]; !ok {
-			fmt.Println("key not in object")
+	}
+	//if expected is object,
+	if expectedObj, ok := isObj(expected); ok {
+		actualObj, ok := isObj(actual)
+		//but actual is not object, return
+		if !ok && ac.checkExists {
 			return false
-		} else {
-			if len(path) == 1 {
-				cb(value)
+		}
+		//start comparing each object element.
+		for key, element := range expectedObj {
+			actualElement, ok := actualObj[key]
+			//if key does not exist in actual object, return.
+			if !ok && ac.checkExists {
+				log.Fatal(fmt.Sprintf("Expected key `%s` in %s\n", key, path))
+				return false
+			}
+
+			newPath := fmt.Sprintf(`%s["%s"]`, path, key)
+			// To accomodate for notContains use cases,so that there are no false positives for this chunk below:
+			/*`
+			if !ac.checkExists{
 				return true
-			} else {
-				return jsonExists(value, path[1:], cb)
+			}
+			*/
+			// If key exists in both actual and expected,
+			if ok {
+				//and their values are not equal, return.
+				if !isEqualElement(newPath, element, actualElement, ac) && ac.checkExists {
+					return false
+				}
+				//key exists in both actual and expected
+				//not comparing values AND not checking for existence.
+				//return true to indicate failure.
+				if !ac.checkValues && !ac.checkExists {
+					return true
+				}
 			}
 		}
+		//checking for existence and all found, so return true.
+		if ac.checkExists {
+			return true
+		}
+		//else, not checking for non-existence and all not found so return false.
+		return false
 	}
-	
-	return false	
+	//not a valid json, throw fatal.
+	log.Fatal("Expected value at %s is not json: `%v`\n", path, expected)
+	//unreachable, so safe to use any value
+	return false
 }
 
 func main() {
-	var expected interface{}
-	var actual interface{}
-	expectedStr := `{
-    "status": "success",
-    "message": "",
-    "data": {
-        "user": {
-            "id": 1,
-            "email": "admin@ratex.co",
-            "name": "admin",
-            "phone_no": 96787432,
-            "account_type": 2,
-            "share_referral": "ABCDEF",
-            "currency": "SGD"
-        },
-        "balance": {
-            "currency": "SGD",
-            "amount": "0.00"
-        },
-        "rewards": null,
-        "new": false,
-        "verified": true,
-        "email_verified": true,
-        "phone_verified": true,
-        "has_password": true,
-        "currency": "SGD"
-    }
-	}`
 	actualStr := `{
     "status": "success",
     "message": "",
@@ -270,20 +247,11 @@ func main() {
         "csrf": "xmzu8vEjIkTawI0BvOkzyoxZEua01FfBVDlN4f9SsG8="
     }
 	}`
-	
-	var err error
-	err = json.Unmarshal([]byte(expectedStr), &expected)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	
-	err = json.Unmarshal([]byte(actualStr), &actual)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	start := time.Now()
-	fmt.Println("jsonContains =", jsonContains(expected, actual))
-	fmt.Println(time.Now().Sub(start))
+	expectedStr := `{
+		"status": "fail"	
+	}`
+	fmt.Println("assertJSON =", assertJSON([]byte(expectedStr), []byte(actualStr), assertConfig{
+		checkValues: false,
+		checkExists: false,
+	}))
 }
