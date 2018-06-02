@@ -1,17 +1,17 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"path/filepath"
 	"regexp"
 )
 
 // templates is used to store multiple templates that were parsed, producing 1 Template object.
-var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+var templates = template.Must(template.ParseFiles("tmpl/edit.html", "tmpl/view.html"))
 
 // validPath is used to validate page titles submitted by users.
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
@@ -25,13 +25,13 @@ type Page struct {
 //Save is a method on Page struct that will save the page into a text file.
 func (page *Page) Save() error {
 	filename := page.Title + ".txt"
-	return ioutil.WriteFile(filename, page.Body, 0600)
+	return ioutil.WriteFile(filepath.Join("data", filename), page.Body, 0600)
 }
 
 //LoadPage loads a text file, reads it and creates a new Page literal from its content.
 func LoadPage(title string) (*Page, error) {
 	filename := title + ".txt"
-	body, err := ioutil.ReadFile(filename)
+	body, err := ioutil.ReadFile(filepath.Join("data", filename))
 	if err != nil {
 		return nil, err
 	}
@@ -43,36 +43,32 @@ func LoadPage(title string) (*Page, error) {
 
 func main() {
 	//this is the routing of endpoint to handler. Like url mappings in web.xml.
+	http.HandleFunc("/", frontPageHandler)
 	http.HandleFunc("/view/", makeHandler(ViewHandler))
 	http.HandleFunc("/edit/", makeHandler(EditHandler))
 	http.HandleFunc("/save/", makeHandler(SaveHandler))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// Handler is of type http.HandlerFunc (satisfies) because HandlerFunc type is defined with the signature func(ResponseWriter, *Request)
-func Handler(responseWriter http.ResponseWriter, request *http.Request) {
-	fmt.Fprintf(responseWriter, "Hi there, I love %s!", request.URL.Path[1:])
-}
-
 // ViewHandler is a http.HandlerFunc serves a page requested from the "/view/*" endpoint.
 // If page doesn't exist, then this handler sends a redirect to the edit page so that the page can be created.
-func ViewHandler(responseWriter http.ResponseWriter, request *http.Request, title string) {
+func ViewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	page, err := LoadPage(title)
 	if err != nil {
-		http.Redirect(responseWriter, request, "/edit/"+title, http.StatusFound)
+		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
 		return
 	}
-	renderTemplate(responseWriter, "view", page)
+	renderTemplate(w, "view", page)
 }
 
 // EditHandler is a http.HandlerFunc that serves an edit page.
-func EditHandler(responseWriter http.ResponseWriter, request *http.Request, title string) {
+func EditHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := LoadPage(title)
 	if err != nil {
 		//if there's error loading page, then just return a page with the title = requested title.
 		p = &Page{Title: title}
 	}
-	renderTemplate(responseWriter, "edit", p)
+	renderTemplate(w, "edit", p)
 }
 
 // SaveHandler is a http.HandlerFunc that saves the edit performed on /edit/ page.
@@ -98,17 +94,6 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	}
 }
 
-// getTitle checks to see if the title submitted by the user is valid. In other words, it can be parsed and compiled according the the validPath regex variable.
-func getTitle(w http.ResponseWriter, r *http.Request) (string, error) {
-	m := validPath.FindStringSubmatch(r.URL.Path)
-	if m == nil {
-		http.NotFound(w, r)
-		return "", errors.New("Invalid Page Title")
-	}
-	fmt.Printf("Result of validPath.FindStringSubmatch is : %q\n", m)
-	return m[2], nil // The title is the second subexpression.
-}
-
 // makeHandler returns a closure http.HandlerFunc that pre-checks the title string in the url. Once the title is validated, it calls the fn function, which are now not satisfying http.HandlerFunc anymore, because of the 3rd string parameter.
 // This example of using function literal and closure is a method of abstracting code. DRY principle.
 // ** Think of closure functions as a casing of another function.
@@ -122,7 +107,17 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 			http.NotFound(w, r)
 			return
 		}
-		//function inside function.
+		fmt.Printf("Result of validPath.FindStringSubmatch is : %q\n", m)
+		//use closure function to call the actual handler..
 		fn(w, r, m[2])
 	}
+}
+
+func frontPageHandler(w http.ResponseWriter, r *http.Request) {
+	p, err := LoadPage("FrontPage")
+	if err != nil {
+		//if there's error loading page, then just return a page with the title = requested title.
+		p = &Page{Title: "FrontPage"}
+	}
+	renderTemplate(w, "view", p)
 }
