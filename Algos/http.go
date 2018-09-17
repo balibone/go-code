@@ -1,4 +1,4 @@
-package test_utilities
+package main
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ type assertConfig struct {
 // The handler refers to an existing http.HandlerFunc in the production code, and this allows CheckResponse to know which handler to test.
 // The use case identifier is supplied by the tester to indicate what kind of checking he wants to carry out. The different identifiers and correspoding use cases are detailed below.
 /*
-KEY SPECIFIC: 
+KEY SPECIFIC:
 0: I want response to CONTAIN AT LEAST this data. (check keys & values)
 1: I want response to CONTAIN EXACTLY this data, nothing more. (check keys & values)
 2: I want response to CONTAIN THESE keys, but I don't SPECIFY the values. (check keys)
