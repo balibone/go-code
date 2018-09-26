@@ -25,8 +25,8 @@ func binarySearchRecursive(arr []int, left, right, target int) int {
 		return mid
 	}
 	if arr[mid] > target {
-		return binarySearcher(arr, target, left, mid-1)
+		return binarySearchRecursive(arr, target, left, mid-1)
 	} else {
-		return binarySearcher(arr, target, mid+1, right)
+		return binarySearchRecursive(arr, target, mid+1, right)
 	}
 }
