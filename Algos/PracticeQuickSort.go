@@ -43,7 +43,7 @@ func part(arr []int, left, right int) int {
 			arr[lastOfLeft], arr[i] = arr[i], arr[lastOfLeft] //populate s1
 		}
 	}
-	// finally, swap value at partIndex to correct place.
+	// finally, shift partition value to the correct place by swapping it with the last element of left partition
 	arr[lastOfLeft], arr[left] = arr[left], arr[lastOfLeft]
 
 	return partIndex
