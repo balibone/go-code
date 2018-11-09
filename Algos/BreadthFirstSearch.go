@@ -10,10 +10,8 @@ type TreeNode struct {
 // breadthFirstSearch is an iterative function to search for a leaf in a tree
 // with a certain value. returning true if found
 func breadthFirstSearch(head TreeNode, val int) bool {
-	// while loop inside while loop
-	// first loop is while array of values is not empty
-	// nested loop is while this node has child values, append to array of values.
 	arr := []int{head.Val}
+	// while array of values is not empty
 	for len(arr) > 0 {
 		// if val is found, return true
 		if head.Val == val {
