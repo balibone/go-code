@@ -6,29 +6,44 @@ import (
 
 func main() {
 	arr := []int{1, 2, 3, 4, 4, 5}
-	if result := binarySearch(arr, 4); result < 0 {
+	if result := binarySearchIterative(arr, 4); result < 0 {
 		fmt.Println("Target was not found in array!")
 	} else {
 		fmt.Println("Target was found in array index!", result)
 	}
 }
 
-func binarySearch(arr []int, target int) int {
-	return binarySearcher(arr, target, 0, len(arr)-1)
+// binarySearchIterative performs binary search iteratively, assuming that
+// it is sorted in ascending order.
+func binarySearchIterative(arr []int, target int) int {
+	left := 0
+	right := len(arr) - 1
+	mid := (left + right) / 2
+	for left <= right {
+		if arr[mid] == target {
+			return mid
+		} else if arr[mid] < target {
+			left = mid + 1
+		} else if arr[mid] > target {
+			right = mid - 1
+		}
+	}
+	return -1 //not found
 }
 
-// this binary search assumes that the given array is sorted in ascending order.
-func binarySearcher(arr []int, target, left, right int) int {
+// binarySearchRecursive performs binary search recursively, assuming that
+// it is sorted in ascending order.
+func binarySearchRecursive(arr []int, left, right, target int) int {
 	if left > right {
-		return -1 //overshot so not found
+		return -1 //not found
 	}
-	mid := (right + left) / 2
-	if arr[mid] == target { //found
+	mid := (left + right) / 2
+	if arr[mid] == target {
 		return mid
 	}
 	if arr[mid] > target {
-		return binarySearcher(arr, target, left, mid-1)
+		return binarySearchRecursive(arr, target, left, mid-1)
 	} else {
-		return binarySearcher(arr, target, mid+1, right)
+		return binarySearchRecursive(arr, target, mid+1, right)
 	}
 }

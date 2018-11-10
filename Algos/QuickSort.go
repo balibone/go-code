@@ -2,6 +2,8 @@ package Algos
 
 import (
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 func main() {
@@ -22,20 +24,30 @@ func quickSort(arr []int, left, right int) {
 }
 
 func partitionArray(arr []int, left, right int) int {
-	pivot := arr[left]
-	leftHalfLast := left
-	for i := left + 1; i <= right; i++ {
-		if arr[i] < pivot { // place it in S1. make sure to swap the old first element of "S2" (aka the new last element of S1) with this element
-			leftHalfLast++
-			swap(arr, leftHalfLast, i)
-		}
-		// else, let everything stay there, because they are already in S2
+	// use a random index as partition index
+	rand.Seed(time.Now().UnixNano())
+	random := rand.Intn(right)
+	var partIndex int
+	if left > 0 {
+		partIndex = random%left + left
 	}
-	// swap pivot with element in leftHalfLast so that pivot is now in the right position
-	swap(arr, leftHalfLast, left)
-	return leftHalfLast
-}
 
-func swap(arr []int, idxA, idxB int) {
-	arr[idxA], arr[idxB] = arr[idxB], arr[idxA]
+	// initialise pointer to signify last element of left partition
+	// at first, since left partiion is size 0, it is same
+	// position as the left
+	lastOfLeft := left
+
+	// move parition value to left index.
+	arr[partIndex], arr[left] = arr[left], arr[partIndex]
+	// start comparing values from index 1 to right and populate S1
+	for i := left + 1; i <= right; i++ {
+		if arr[i] < arr[left] {
+			lastOfLeft++                                      //increase size
+			arr[lastOfLeft], arr[i] = arr[i], arr[lastOfLeft] //populate s1
+		}
+	}
+	// finally, shift partition value to the correct place by swapping it with the last element of left partition
+	arr[lastOfLeft], arr[left] = arr[left], arr[lastOfLeft]
+
+	return partIndex
 }

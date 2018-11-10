@@ -25,8 +25,6 @@ func main() {
 // This right half goes through the same process of divide and conquer until finally,
 // It is time for the result of the very first conquer and this sorted right half to be conquered.
 // This continues for the rest of the array.
-//
-// If you still do not have an idea of what i'm saying, feel free to read through the code.
 func mergeSort(arr []int, left, right int) {
 	if left == right {
 		// When this is true, means only 1 element left in this subarray,
