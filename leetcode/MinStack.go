@@ -2,6 +2,8 @@
 
 package leetcode
 
+// MinStack has a GetMin() function that runs in O(1) time. Made possible by using
+// a 2nd stack to keep track of local minimums on every pop & push.
 type MinStack struct {
 	stack    []int
 	minStack []int
